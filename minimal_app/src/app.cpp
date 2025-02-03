@@ -4,8 +4,9 @@
 #include <dviglo/gl_utils/texture_cache.hpp>
 #include <dviglo/main/engine_params.hpp>
 #include <dviglo/main/timer.hpp>
-#include <iostream>  // For debugging output
-#include <stdexcept> // For throwing exceptions
+#include <SDL.h>
+#include <iostream>
+#include <stdexcept>
 
 using namespace glm;
 
@@ -22,27 +23,31 @@ void App::setup()
 {
     engine_params::log_path = get_pref_path("dviglo2d", "minimal_app") + "log.log";
     engine_params::window_size = {900, 700};
-    engine_params::msaa_samples = 8;
+    engine_params::msaa_samples = 8; // При включении крэшится на сервере ГитХаба в Линуксе ....
     engine_params::window_mode = WindowMode::windowed;
+    
+    // Headless testing setup (disable audio and use offscreen video driver)
+    setenv("SDL_VIDEODRIVER", "offscreen", 1);
+    setenv("SDL_AUDIODRIVER", "dummy", 1);
+    setenv("LIBGL_ALWAYS_SOFTWARE", "true", 1);
 }
 
 void App::start()
 {
+    // Logging base path
     StrUtf8 base_path = get_base_path();
-
-    // Log to help debug path issues
     std::cout << "Base path: " << base_path << std::endl;
 
-    // Try loading the texture
+    // Load texture and check for errors
     texture_ = DV_TEXTURE_CACHE->get(base_path + "engine_test_data/textures/tile128.png");
-
     if (!texture_)
     {
+        std::cerr << "Error: Failed to load texture from path: " << base_path + "engine_test_data/textures/tile128.png" << std::endl;
         throw std::runtime_error("Error: Failed to load texture.");
     }
     std::cout << "Texture loaded successfully." << std::endl;
 
-    // Initialize SpriteBatch and fonts
+    // Initialize sprite batch and fonts
     sprite_batch_ = make_unique<SpriteBatch>();
     r_20_font_ = make_unique<SpriteFont>(SFSettingsSimple(base_path + "engine_test_data/fonts/ubuntu/Ubuntu-R.ttf", 20));
     my_font_ = make_unique<SpriteFont>(SFSettingsSimple(base_path + "engine_test_data/fonts/ubuntu/Ubuntu-R.ttf", 60, true, 0, 0x9000CAFF));
@@ -50,8 +55,10 @@ void App::start()
     // Check font loading
     if (!r_20_font_ || !my_font_)
     {
+        std::cerr << "Error: Failed to load fonts." << std::endl;
         throw std::runtime_error("Error: Failed to load fonts.");
     }
+
     std::cout << "Fonts loaded successfully." << std::endl;
 }
 
@@ -65,7 +72,7 @@ void App::handle_sdl_event(const SDL_Event& event)
         return;
 
     default:
-        // Handle window close or resizing events
+        // Реагируем на закрытие приложения и изменение размера окна
         Application::handle_sdl_event(event);
         return;
     }
@@ -91,7 +98,7 @@ void App::update(i64 ns)
     ++frame_counter;
     time_counter += ns;
 
-    // Update fps_text every half second
+    // Обновляем fps_text каждые пол секунды
     if (time_counter >= ns_per_s / 2)
     {
         i64 fps = frame_counter * ns_per_s / time_counter;
@@ -107,10 +114,11 @@ void App::update(i64 ns)
 
 void App::draw()
 {
-    // Check if sprite_batch_ is initialized
-    if (!sprite_batch_)
+    // Ensure the window and other resources are initialized
+    if (!window_)
     {
-        throw std::runtime_error("Error: SpriteBatch is not initialized.");
+        std::cerr << "Error: Failed to create window." << std::endl;
+        throw std::runtime_error("Error: Failed to create window.");
     }
 
     glClearColor(1.0f, 0.3f, 0.3f, 1.0f);
@@ -118,7 +126,6 @@ void App::draw()
 
     sprite_batch_->prepare_ogl(true);
 
-    // Draw triangles and sprites
     sprite_batch_->triangle_.v0 = {{800.f, 0.f}, 0xFF00FF00};
     sprite_batch_->triangle_.v1 = {{800.f, 300.f}, 0xFF0000FF};
     sprite_batch_->triangle_.v2 = {{0.f, 300.f}, 0xFFFFFFFF};
