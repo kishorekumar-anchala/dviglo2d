@@ -30,6 +30,13 @@ void App::setup()
     setenv("SDL_VIDEODRIVER", "offscreen", 1);
     setenv("SDL_AUDIODRIVER", "dummy", 1);
     setenv("LIBGL_ALWAYS_SOFTWARE", "true", 1);
+
+    // Attempt to initialize SDL subsystems
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0)
+    {
+        std::cerr << "Error: SDL could not initialize! SDL_Error: " << SDL_GetError() << std::endl;
+        throw std::runtime_error("SDL could not initialize!");
+    }
 }
 
 void App::start()
@@ -72,7 +79,7 @@ void App::handle_sdl_event(const SDL_Event& event)
         return;
 
     default:
-        // Реагируем на закрытие приложения и изменение размера окна
+        // React to window close and resizing events
         Application::handle_sdl_event(event);
         return;
     }
@@ -98,7 +105,7 @@ void App::update(i64 ns)
     ++frame_counter;
     time_counter += ns;
 
-    // Обновляем fps_text каждые пол секунды
+    // Update fps_text every half second
     if (time_counter >= ns_per_s / 2)
     {
         i64 fps = frame_counter * ns_per_s / time_counter;
