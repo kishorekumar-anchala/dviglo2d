@@ -1,10 +1,11 @@
 #include "app.hpp"
-#include <iostream>
 
 #include <dviglo/fs/fs_base.hpp>
 #include <dviglo/gl_utils/texture_cache.hpp>
 #include <dviglo/main/engine_params.hpp>
 #include <dviglo/main/timer.hpp>
+#include <iostream>  // For debugging output
+#include <stdexcept> // For throwing exceptions
 
 using namespace glm;
 
@@ -21,7 +22,7 @@ void App::setup()
 {
     engine_params::log_path = get_pref_path("dviglo2d", "minimal_app") + "log.log";
     engine_params::window_size = {900, 700};
-    engine_params::msaa_samples = 8; // При включении крэшится на сервере ГитХаба в Линуксе ....
+    engine_params::msaa_samples = 8;
     engine_params::window_mode = WindowMode::windowed;
 }
 
@@ -29,27 +30,29 @@ void App::start()
 {
     StrUtf8 base_path = get_base_path();
 
-    // Attempt to load texture
+    // Log to help debug path issues
+    std::cout << "Base path: " << base_path << std::endl;
+
+    // Try loading the texture
     texture_ = DV_TEXTURE_CACHE->get(base_path + "engine_test_data/textures/tile128.png");
-    if (!texture_) {
-        std::cerr << "Error: Failed to load texture 'tile128.png'." << std::endl;
-        // Handle error (maybe load a fallback texture or exit)
-    }
 
+    if (!texture_)
+    {
+        throw std::runtime_error("Error: Failed to load texture.");
+    }
+    std::cout << "Texture loaded successfully." << std::endl;
+
+    // Initialize SpriteBatch and fonts
     sprite_batch_ = make_unique<SpriteBatch>();
-    if (!sprite_batch_) {
-        std::cerr << "Error: Failed to create SpriteBatch." << std::endl;
-        // Handle error (exit or fallback)
-    }
-
-    // Attempt to load fonts
     r_20_font_ = make_unique<SpriteFont>(SFSettingsSimple(base_path + "engine_test_data/fonts/ubuntu/Ubuntu-R.ttf", 20));
     my_font_ = make_unique<SpriteFont>(SFSettingsSimple(base_path + "engine_test_data/fonts/ubuntu/Ubuntu-R.ttf", 60, true, 0, 0x9000CAFF));
 
-    if (!r_20_font_ || !my_font_) {
-        std::cerr << "Error: Failed to load fonts." << std::endl;
-        // Handle error (maybe use fallback font or exit)
+    // Check font loading
+    if (!r_20_font_ || !my_font_)
+    {
+        throw std::runtime_error("Error: Failed to load fonts.");
     }
+    std::cout << "Fonts loaded successfully." << std::endl;
 }
 
 void App::handle_sdl_event(const SDL_Event& event)
@@ -62,7 +65,7 @@ void App::handle_sdl_event(const SDL_Event& event)
         return;
 
     default:
-        // React to application closing and window resizing
+        // Handle window close or resizing events
         Application::handle_sdl_event(event);
         return;
     }
@@ -104,41 +107,38 @@ void App::update(i64 ns)
 
 void App::draw()
 {
-    // Clear the screen with a color
+    // Check if sprite_batch_ is initialized
+    if (!sprite_batch_)
+    {
+        throw std::runtime_error("Error: SpriteBatch is not initialized.");
+    }
+
     glClearColor(1.0f, 0.3f, 0.3f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    // Ensure sprite_batch_ is valid before proceeding with drawing
-    if (sprite_batch_) {
-        sprite_batch_->prepare_ogl(true);
+    sprite_batch_->prepare_ogl(true);
 
-        sprite_batch_->triangle_.v0 = {{800.f, 0.f}, 0xFF00FF00};
-        sprite_batch_->triangle_.v1 = {{800.f, 300.f}, 0xFF0000FF};
-        sprite_batch_->triangle_.v2 = {{0.f, 300.f}, 0xFFFFFFFF};
-        sprite_batch_->add_triangle();
+    // Draw triangles and sprites
+    sprite_batch_->triangle_.v0 = {{800.f, 0.f}, 0xFF00FF00};
+    sprite_batch_->triangle_.v1 = {{800.f, 300.f}, 0xFF0000FF};
+    sprite_batch_->triangle_.v2 = {{0.f, 300.f}, 0xFFFFFFFF};
+    sprite_batch_->add_triangle();
 
-        sprite_batch_->set_shape_color(0xFFFF0000);
-        sprite_batch_->draw_triangle({400.f, 0.f}, {400.f, 600.f}, {0.f, 600.f});
+    sprite_batch_->set_shape_color(0xFFFF0000);
+    sprite_batch_->draw_triangle({400.f, 0.f}, {400.f, 600.f}, {0.f, 600.f});
 
-        sprite_batch_->set_shape_color(0x90FFFF00);
-        sprite_batch_->draw_rect({300.f, 300.f, 300.f, 100.f});
+    sprite_batch_->set_shape_color(0x90FFFF00);
+    sprite_batch_->draw_rect({300.f, 300.f, 300.f, 100.f});
 
-        // Check if texture is valid before drawing sprites
-        if (texture_) {
-            sprite_batch_->draw_sprite(texture_.get(), {100.f, 100.f});
-            sprite_batch_->draw_sprite(texture_.get(), {500.f, 100.f}, nullptr, 0xFFFFFFFF, rotation);
-        }
+    sprite_batch_->draw_sprite(texture_.get(), {100.f, 100.f});
+    sprite_batch_->draw_sprite(texture_.get(), {500.f, 100.f}, nullptr, 0xFFFFFFFF, rotation);
 
-        sprite_batch_->draw_string(fps_text, r_20_font_.get(), {4.f, 1.f}, 0xFF000000);
-        sprite_batch_->draw_string(fps_text, r_20_font_.get(), {3.f, 0.f}, 0xFFFFFFFF);
+    sprite_batch_->draw_string(fps_text, r_20_font_.get(), {4.f, 1.f}, 0xFF000000);
+    sprite_batch_->draw_string(fps_text, r_20_font_.get(), {3.f, 0.f}, 0xFFFFFFFF);
 
-        // Get mouse position and display it
-        f32 mouse_x, mouse_y;
-        SDL_GetMouseState(&mouse_x, &mouse_y);
-        sprite_batch_->draw_string("Привет!", my_font_.get(), {mouse_x, mouse_y});
-        
-        sprite_batch_->flush();
-    } else {
-        std::cerr << "Error: SpriteBatch is not initialized." << std::endl;
-    }
+    f32 mouse_x, mouse_y;
+    SDL_GetMouseState(&mouse_x, &mouse_y);
+    sprite_batch_->draw_string("Привет!", my_font_.get(), {mouse_x, mouse_y});
+
+    sprite_batch_->flush();
 }
