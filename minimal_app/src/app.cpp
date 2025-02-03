@@ -1,4 +1,5 @@
 #include "app.hpp"
+#include <iostream>
 
 #include <dviglo/fs/fs_base.hpp>
 #include <dviglo/gl_utils/texture_cache.hpp>
